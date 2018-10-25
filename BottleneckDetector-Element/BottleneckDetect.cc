@@ -90,9 +90,9 @@ void* BottleneckDetect::create_tree(Element *e)
     //Init Vectors
 #if CLICK_STATS >= 1
     for (int p=0 ; p<e->ninputs() ; p++)
-        data->npackets_in.push_back(0);
+        data->npackets_in.push_back(p);
     for (int p=0 ; p<e->noutputs() ; p++)
-        data->npackets_out.push_back(0);
+        data->npackets_out.push_back(p);
 #endif 
 
     //Check Children (Recursive, sorry)
