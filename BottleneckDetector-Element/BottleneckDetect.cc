@@ -52,8 +52,6 @@ BottleneckDetect::initialize(ErrorHandler *errh)
         return -1;
     }
 
-    _visitor = VisitElement(this->router());
-
     ScheduleInfo::initialize_task(this, &_task, errh);
 
     Timestamp ts;
@@ -67,7 +65,8 @@ BottleneckDetect::initialize(ErrorHandler *errh)
 bool 
 BottleneckDetect::run_task(Task *t) 
 {
-    _rootnode = (treenode_t *)create_tree(_baseElement);
+    RouterVisitor visitor = VisitElement(this->router());
+    _rootnode = (treenode_t *)create_tree(_baseElement, visitor);
     _treeBuilt = true;
 
     verbose("Tree Build Complete");
@@ -75,11 +74,11 @@ BottleneckDetect::run_task(Task *t)
 }
 
 treenode_t* 
-BottleneckDetect::create_tree(Element *e) 
+BottleneckDetect::create_tree(Element *e, RouterVisitor *visitor) 
 {
     treenode_t *node = new treenode_t();
     
-    for (int d=0 ; d<datanodes.size() ; d++) {
+    for(int d=0 ; d<datanodes.size() ; d++) {
         if (datanodes[d]->element == e) {
             node->data = datanodes[d];
             break;
@@ -91,16 +90,16 @@ BottleneckDetect::create_tree(Element *e)
         node->data = data;
         data->element = e;
 #if CLICK_STATS >= 1
-        for (int p=0 ; p<e->ninputs() ; p++)
+        for(int p=0 ; p<e->ninputs() ; p++)
             data->npackets_in.push_back(p);
-        for (int p=0 ; p<e->noutputs() ; p++)
+        for(int p=0 ; p<e->noutputs() ; p++)
             data->npackets_out.push_back(p);
 #endif
         datanaodes.push_back(node->data);
     }
 
-    for (int p=0 ; p<e->noutputs() ; p++) {
-        this->router()->visit_downstream(data->element , p, &_visitor);
+    for(int p=0 ; p<e->noutputs() ; p++) {
+        this->router()->visit_downstream(node->data->element , p, &visitor);
         node->child.push_back((treenode_t *)create_tree( _visitor.getNext() ));
     }
 
@@ -113,7 +112,7 @@ BottleneckDetect::run_timer(Timer *t)
     Timestamp ts;
     if(_treeBuilt) {
         if(collect_data(_rootnode)) {
-            if (_doPrint)
+            if(_doPrint)
                 print_data(_rootnode);
             if(_first)
                 first = false;
@@ -131,9 +130,9 @@ bool
 BottleneckDetect::collect_data(treenode_t *node) 
 {
 #if CLICK_STATS >= 1
-    for (int p=0 ; p<node->data->element->ninputs() ; p++)
+    for(int p=0 ; p<node->data->element->ninputs() ; p++)
         node->data->npackets_in[p] = (node->data->element->input(p).npackets() - (_first)?node->data->element->input(p).npackets():node->data->npackets_in[p]);
-    for (int p=0 ; p<node->data->element->noutputs() ; p++)
+    for(int p=0 ; p<node->data->element->noutputs() ; p++)
         node->data->npackets_out[p] = (node->data->element->output(p).npackets() - (_first)?node->data->element->output(p).npackets():node->data->npackets_out[p]);
 #endif
 #if CLICK_STATS >= 2
@@ -173,7 +172,7 @@ VisitElement::visit(Element *e, bool isoutput, int port, Element *fe,
 }
 
 void
-verbose(String message)
+BottleneckDetect::verbose(String message)
 {
     if(_doPrint)
         click_chater("#!# BottleneckDetect Message: %s", message.c_str());

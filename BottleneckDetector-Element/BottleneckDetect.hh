@@ -69,6 +69,7 @@ private:
     treenode_t* create_tree(Element *e);
     bool collect_data(treenode_t *node);
     void print_data(treenode_t *node);
+    void verbose(String message);
 };
 
 CLICK_ENDDECLS
