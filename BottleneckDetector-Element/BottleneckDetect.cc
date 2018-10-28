@@ -11,15 +11,18 @@
 CLICK_DECLS
 
 BottleneckDetect::BottleneckDetect()
-    : _timer(this), _task(this), _interval(1), _doPrint(false), _rootnode(NULL), _treeBuilt(false), _visitor(this->router())
-{}
+    : _timer(this), _task(this), _interval(1), _doPrint(false), 
+    _rootnode(NULL), _treeBuilt(false), _first(true)
+{
+}
 
-BottleneckDetect::~BottleneckDetect()
-{}
+BottleneckDetect::~BottleneckDetect() 
+{    
+}
 
-int BottleneckDetect::configure(Vector<String> &conf, ErrorHandler *errh) {
-
-    //Parse Arguments
+int 
+BottleneckDetect::configure(Vector<String> &conf, ErrorHandler *errh) 
+{
     String elementName = "";
     if(Args(conf, this, errh)
         .read_mp("ELEMENT", elementName)
@@ -28,36 +31,31 @@ int BottleneckDetect::configure(Vector<String> &conf, ErrorHandler *errh) {
         .complete() < 0 )
     return -1;
 
-    //Valid Interval?
     if(_interval < 1) 
         return -1;
 
-    //Check Starter Element is in the router config
     if(this->router()->find(elementName) == NULL)
         return -1;
     else
         _baseElement = this->router()->find(elementName, errh);
 
+    verbose("Configuration Complete");
     return 0;
 }
 
-int BottleneckDetect::initialize(ErrorHandler *errh)
+int 
+BottleneckDetect::initialize(ErrorHandler *errh) 
 {
-    if(_doPrint)
-        click_chatter("## Init ##");
+    //Click Stats > 0 needed to  get packets per port
+    if(CLICK_STATS < 1) {
+        verbose("For there to be any real point to this element, build clickos with stats >= 1");
+        return -1;
+    }
 
-    //Click Stats > 0 needed to get packets per port
-#if CLICK_STATS < 1
-    click_chatter("Bottleneck Detect will be pointless without stats >= 1, currently stats < 1");
-#endif
-    
-    //Router Visitor
     _visitor = VisitElement(this->router());
 
-    //Run build tree task
     ScheduleInfo::initialize_task(this, &_task, errh);
 
-    //Schedule Data Collection
     Timestamp ts;
     ts.assign(_interval, 0);
     _timer.initialize(this);
@@ -66,36 +64,41 @@ int BottleneckDetect::initialize(ErrorHandler *errh)
     return 0;
 }
 
-bool BottleneckDetect::run_task(Task *t)
+bool 
+BottleneckDetect::run_task(Task *t) 
 {
-    //Create tree
     _rootnode = (treenode_t *)create_tree(_baseElement);
     _treeBuilt = true;
 
-    if(_doPrint)
-        click_chatter("## Tree Built ##");
+    verbose("Tree Build Complete");
     return true;
 }
 
-void* BottleneckDetect::create_tree(Element *e)
+treenode_t* 
+BottleneckDetect::create_tree(Element *e) 
 {
-    if(_doPrint)
-        click_chatter("## Building Tree ##");
+    treenode_t *node = new treenode_t();
+    
+    for (int d=0 ; d<datanodes.size() ; d++) {
+        if (datanodes[d]->element == e) {
+            node->data = datanodes[d];
+            break;
+        }
+    }
 
-    treenode_t *node = malloc(sizeof(treenode_t));
-    datanode_t *data = malloc(sizeof(datanode_t));
-    node->data = data;
-    data->element = e;
-
-    //Init Vectors
+    if(node->data = NULL) {
+        datanode_t *data = new datanode_t();
+        node->data = data;
+        data->element = e;
 #if CLICK_STATS >= 1
-    for (int p=0 ; p<e->ninputs() ; p++)
-        data->npackets_in.push_back(p);
-    for (int p=0 ; p<e->noutputs() ; p++)
-        data->npackets_out.push_back(p);
-#endif 
+        for (int p=0 ; p<e->ninputs() ; p++)
+            data->npackets_in.push_back(p);
+        for (int p=0 ; p<e->noutputs() ; p++)
+            data->npackets_out.push_back(p);
+#endif
+        datanaodes.push_back(node->data);
+    }
 
-    //Check Children (Recursive, sorry)
     for (int p=0 ; p<e->noutputs() ; p++) {
         this->router()->visit_downstream(data->element , p, &_visitor);
         node->child.push_back((treenode_t *)create_tree( _visitor.getNext() ));
@@ -104,15 +107,18 @@ void* BottleneckDetect::create_tree(Element *e)
     return node;
 }
 
-void BottleneckDetect::run_timer(Timer *t)
+void 
+BottleneckDetect::run_timer(Timer *t) 
 {
     Timestamp ts;
     if(_treeBuilt) {
         if(collect_data(_rootnode)) {
             if (_doPrint)
                 print_data(_rootnode);
+            if(_first)
+                first = false;
         } else {
-            click_chatter("## Monitor: Failed to build element tree");
+            verbose("Data Collection Failed");
         }
         ts.assign(_interval, 0);
         _timer.reschedule_after(ts);
@@ -121,35 +127,56 @@ void BottleneckDetect::run_timer(Timer *t)
     _timer.reschedule_after(ts);
 }
 
-bool BottleneckDetect::collect_data(treenode_t *node)
+bool 
+BottleneckDetect::collect_data(treenode_t *node) 
 {
-    if(_doPrint)
-        click_chatter("## Collecting Data ##");
-
 #if CLICK_STATS >= 1
     for (int p=0 ; p<node->data->element->ninputs() ; p++)
-        node->data->npackets_in[p] = (node->data->element->input(p).npackets() - node->data->npackets_in[p]);
+        node->data->npackets_in[p] = (node->data->element->input(p).npackets() - (_first)?node->data->element->input(p).npackets():node->data->npackets_in[p]);
     for (int p=0 ; p<node->data->element->noutputs() ; p++)
-        node->data->npackets_out[p] = (node->data->element->output(p).npackets() - node->data->npackets_out[p]);
+        node->data->npackets_out[p] = (node->data->element->output(p).npackets() - (_first)?node->data->element->output(p).npackets():node->data->npackets_out[p]);
 #endif
 #if CLICK_STATS >= 2
     //Fix me: Cycles does not work on MiniOS
 #endif
 
-    //Go Recursive
     for(int c=0 ; c<node->child.size() ; c++)
         collect_data(node->child[c]);
+
+    return true;
 }
 
-void BottleneckDetect::print_data(treenode_t *node) 
+void 
+BottleneckDetect::print_data(treenode_t *node) 
 {
+    click_chatter("Element: %s", node->data->element->name().c_str());
+#if CLICK_STATS >= 1
+    for(int p=0 ; p<(node->data->npackets_in.size()) ; p++)
+        click_chatter("  Input Port %d ::: %d packets", p, node->data->npackets_in[p]);
+    for(int p=0 ; p<(node->data->npackets_out.size()) ; p++)
+        click_chatter("  Output Port %d ::: %d packets", p, node->data->npackets_out[p]);
+#endif
+#if CLICK_STATS >= 2
+    click_chater("  Cycles ::: %d", node->data->cycles);
+#endif
 
+    for(int c=0 ; c<node->child.size() ; c++)
+        print_data(node->child[c]);
 }
 
-bool BottleneckDetect::VisitElement::visit(Element *e, bool isoutput, int port, Element *fe, int from_port, int distance)
+bool 
+VisitElement::visit(Element *e, bool isoutput, int port, Element *fe, 
+    int from_port, int distance) 
 {
     _next = e;
     return false;
+}
+
+void
+verbose(String message)
+{
+    if(_doPrint)
+        click_chater("#!# BottleneckDetect Message: %s", message.c_str());
 }
 
 CLICK_ENDDECLS

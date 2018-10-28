@@ -9,45 +9,8 @@
 
 CLICK_DECLS
 
-class BottleneckDetect : public Element {
-public:
-    BottleneckDetect();
-    ~BottleneckDetect();
-
-    //Required
-    const char *class_name() const {return "BottleneckDetect";}
-
-    //Init
-    int configure(Vector<String> &conf, ErrorHandler *errh);
-    int initialize(ErrorHandler *errh);
-
-    //Run on interval (check packets)
-    void run_timer(Timer *t);
-
-    //Run Task (build Tree)
-    bool run_task(Task *t);
-
-    //RouterVisitor: Required to visit the next elements
-    class VisitElement : public ElementTracker {
-    public:
-
-        VisitElement(Router *router)
-	        : ElementTracker(router)
-        {}
-        ~VisitElement()
-        {}
-
-        bool visit(Element *e, bool isoutput, int port, Element *fe, int from_port, int distance);
-
-        Element *getNext() {return _next;}
-
-    private:
-        Element *_next;
-
-    };
-private:
-
-    typedef struct datanode {
+//Node Types
+typedef struct datanode {
         Element *element;
 #if CLICK_STATS >= 1
         Vector<int> npackets_in;
@@ -56,26 +19,56 @@ private:
 #if CLICK_STATS >= 2
         int cycles;
 #endif
-    } datanode_t;
+} datanode_t;
 
-    typedef struct treenode {
-        datanode_t *data;
-        Vector<struct treenode*> child;
-    } treenode_t;
+typedef struct treenode {
+    datanode_t *data;
+    Vector<struct treenode*> child;
+} treenode_t;
+
+//Get Next Element Router Visitor
+class VisitElement : public ElementTracker {
+public:
+    VisitElement(Router *router)
+	    : ElementTracker(router)
+    {}
+    ~VisitElement()
+    {}
+
+    bool visit(Element *e, bool isoutput, int port, Element *fe, int from_port, int distance);
+    Element *getNext() {return _next;}
+
+private:
+    Element *_next;
+};
+
+class BottleneckDetect : public Element {
+public:
+    BottleneckDetect();
+    ~BottleneckDetect();
+
+    const char *class_name() const {return "BottleneckDetect";}
+    int configure(Vector<String> &conf, ErrorHandler *errh);
+    int initialize(ErrorHandler *errh);
+    void run_timer(Timer *t);
+    bool run_task(Task *t);
+
+private:
 
     VisitElement _visitor;
     Element *_baseElement;
     treenode_t *_rootnode;
+    Vector<datanode_t *> datanodes;
     Timer _timer;
     Task _task;
     int _interval;
     bool _doPrint;
+    bool _first;
     bool _treeBuilt;
 
-    void* create_tree(Element *e);
+    treenode_t* create_tree(Element *e);
     bool collect_data(treenode_t *node);
     void print_data(treenode_t *node);
-
 };
 
 CLICK_ENDDECLS
