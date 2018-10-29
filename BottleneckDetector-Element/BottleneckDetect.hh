@@ -55,7 +55,6 @@ public:
 
 private:
 
-    VisitElement _visitor;
     Element *_baseElement;
     treenode_t *_rootnode;
     Vector<datanode_t *> datanodes;
