@@ -74,7 +74,7 @@ BottleneckDetect::run_task(Task *t)
 }
 
 treenode_t* 
-BottleneckDetect::create_tree(Element *e, RouterVisitor *visitor) 
+BottleneckDetect::create_tree(Element *e, VisitElement *visitor) 
 {
     treenode_t *node = new treenode_t();
     
@@ -95,12 +95,12 @@ BottleneckDetect::create_tree(Element *e, RouterVisitor *visitor)
         for(int p=0 ; p<e->noutputs() ; p++)
             data->npackets_out.push_back(p);
 #endif
-        datanaodes.push_back(node->data);
+        datanodes.push_back(node->data);
     }
 
     for(int p=0 ; p<e->noutputs() ; p++) {
         this->router()->visit_downstream(node->data->element , p, &visitor);
-        node->child.push_back((treenode_t *)create_tree( _visitor.getNext() ));
+        node->child.push_back((treenode_t *)create_tree( visitor.getNext(), visitor ));
     }
 
     return node;
@@ -115,7 +115,7 @@ BottleneckDetect::run_timer(Timer *t)
             if(_doPrint)
                 print_data(_rootnode);
             if(_first)
-                first = false;
+                _first = false;
         } else {
             verbose("Data Collection Failed");
         }
@@ -175,7 +175,7 @@ void
 BottleneckDetect::verbose(String message)
 {
     if(_doPrint)
-        click_chater("#!# BottleneckDetect Message: %s", message.c_str());
+        click_chatter("#!# BottleneckDetect Message: %s", message.c_str());
 }
 
 CLICK_ENDDECLS
