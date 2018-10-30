@@ -77,15 +77,17 @@ treenode_t*
 BottleneckDetect::create_tree(Element *e, VisitElement *visitor) 
 {
     treenode_t *node = new treenode_t();
-    
-    for(int d=0 ; d<datanodes.size() ; d++) {
-        if (datanodes[d]->element == e) {
-            node->data = datanodes[d];
-            break;
+
+    if(e != _baseElement) {
+        for(int d=0 ; d<datanodes.size() ; d++) {
+            if (datanodes[d]->element == e) {
+                node->data = datanodes[d];
+                break;
+            }
         }
     }
 
-    if(node->data = NULL) {
+    if(node->data == NULL) {
         datanode_t *data = new datanode_t();
         node->data = data;
         data->element = e;
@@ -111,14 +113,12 @@ BottleneckDetect::run_timer(Timer *t)
 {
     Timestamp ts;
     if(_treeBuilt) {
-        if(collect_data(_rootnode)) {
-            if(_doPrint)
-                print_data(_rootnode);
-            if(_first)
-                _first = false;
-        } else {
-            verbose("Data Collection Failed");
-        }
+        for(int n=0 ; n<datanodes.size() ; n++)
+            collect_data()
+        if(_doPrint)
+            print_data(_rootnode);
+        if(_first)
+            _first = false;
         ts.assign(_interval, 0);
         _timer.reschedule_after(ts);
     }
@@ -127,20 +127,17 @@ BottleneckDetect::run_timer(Timer *t)
 }
 
 bool 
-BottleneckDetect::collect_data(treenode_t *node) 
+BottleneckDetect::collect_data(datanode_t *data) 
 {
 #if CLICK_STATS >= 1
     for(int p=0 ; p<node->data->element->ninputs() ; p++)
-        node->data->npackets_in[p] = (node->data->element->input(p).npackets() - (_first)?node->data->element->input(p).npackets():node->data->npackets_in[p]);
+        data->npackets_in[p] = (data->element->input(p).npackets() - (_first)?data->element->input(p).npackets():data->npackets_in[p]);
     for(int p=0 ; p<node->data->element->noutputs() ; p++)
-        node->data->npackets_out[p] = (node->data->element->output(p).npackets() - (_first)?node->data->element->output(p).npackets():node->data->npackets_out[p]);
+        data->npackets_out[p] = (data->element->output(p).npackets() - (_first)?data->element->output(p).npackets():data->npackets_out[p]);
 #endif
 #if CLICK_STATS >= 2
     //Fix me: Cycles does not work on MiniOS
 #endif
-
-    for(int c=0 ; c<node->child.size() ; c++)
-        collect_data(node->child[c]);
 
     return true;
 }

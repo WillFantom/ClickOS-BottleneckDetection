@@ -66,7 +66,7 @@ private:
     bool _treeBuilt;
 
     treenode_t* create_tree(Element *e, VisitElement visitor);
-    bool collect_data(treenode_t *node);
+    bool collect_data(datanode_t *data);
     void print_data(treenode_t *node);
     void verbose(String message);
 };
