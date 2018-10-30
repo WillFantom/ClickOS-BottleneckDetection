@@ -114,7 +114,7 @@ BottleneckDetect::run_timer(Timer *t)
     Timestamp ts;
     if(_treeBuilt) {
         for(int n=0 ; n<datanodes.size() ; n++)
-            collect_data()
+            collect_data(datanodes[n]);
         if(_doPrint)
             print_data(_rootnode);
         if(_first)
