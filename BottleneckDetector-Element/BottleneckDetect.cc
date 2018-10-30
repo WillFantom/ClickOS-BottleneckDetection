@@ -126,7 +126,7 @@ BottleneckDetect::run_timer(Timer *t)
     _timer.reschedule_after(ts);
 }
 
-bool 
+void 
 BottleneckDetect::collect_data(datanode_t *data) 
 {
 #if CLICK_STATS >= 1
@@ -138,8 +138,6 @@ BottleneckDetect::collect_data(datanode_t *data)
 #if CLICK_STATS >= 2
     //Fix me: Cycles does not work on MiniOS
 #endif
-
-    return true;
 }
 
 void 
